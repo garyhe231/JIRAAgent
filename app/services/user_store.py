@@ -102,9 +102,9 @@ def ensure_admin_exists():
     """Create a default admin if no users exist."""
     if not list_users():
         create_user(
-            username="admin",
-            email="admin@jiraagent.local",
-            password="admin123",
+            username=os.environ.get("ADMIN_USERNAME", "admin"),
+            email=os.environ.get("ADMIN_EMAIL", "admin@jiraagent.local"),
+            password=os.environ.get("ADMIN_PASSWORD", "admin123"),
             role="Admin",
-            display_name="Admin",
+            display_name=os.environ.get("ADMIN_USERNAME", "admin").capitalize(),
         )

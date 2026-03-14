@@ -44,11 +44,11 @@ def _require(request: Request, permission: str = "view"):
 # ── Auth pages ────────────────────────────────────────────────────────────────
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = ""):
+async def login_page(request: Request, error: str = "", next: str = "/"):
     user = get_current_user(request)
     if user:
         return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+    return templates.TemplateResponse("login.html", {"request": request, "error": error, "next": next})
 
 
 @app.post("/login")
@@ -56,17 +56,19 @@ async def login_submit(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: str = Form("/"),
 ):
     user = us.authenticate(username, password)
     if not user:
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "error": "Invalid username or password."},
+            {"request": request, "error": "Invalid username or password.", "next": next},
             status_code=401,
         )
     token = create_session_token(user.id)
-    resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, max_age=86400 * 30)
+    dest = next if next.startswith("/") else "/"
+    resp = RedirectResponse(dest, status_code=303)
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, max_age=86400 * 30, samesite="lax")
     return resp
 
 

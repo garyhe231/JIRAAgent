@@ -41,7 +41,7 @@ def get_current_user(request: Request) -> Optional[User]:
 def require_user(request: Request) -> User:
     user = get_current_user(request)
     if not user:
-        raise HTTPException(status_code=302, headers={"Location": "/login"})
+        raise HTTPException(status_code=302, headers={"Location": f"/login?next={request.url.path}"})
     return user
 
 

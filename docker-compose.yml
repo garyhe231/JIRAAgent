@@ -1,0 +1,35 @@
+services:
+  jiraagent:
+    build: .
+    container_name: jiraagent
+    restart: unless-stopped
+    ports:
+      - "8009:8009"
+    env_file:
+      - .env
+    volumes:
+      - jiraagent_data:/app/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8009/login')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: nginx reverse proxy (uncomment to use)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: jiraagent_nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - /etc/letsencrypt:/etc/letsencrypt:ro   # for HTTPS
+  #   depends_on:
+  #     - jiraagent
+
+volumes:
+  jiraagent_data:
+    driver: local
