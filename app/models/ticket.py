@@ -43,6 +43,8 @@ class Ticket:
     updated_at: str
     comments: List[dict] = field(default_factory=list)
     parent_id: Optional[str] = None
+    project_id: Optional[str] = None
+    milestone_id: Optional[str] = None
 
     def to_dict(self):
         return asdict(self)

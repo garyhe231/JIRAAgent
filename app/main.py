@@ -8,11 +8,13 @@ import json
 from app.services import ticket_store as ts
 from app.services import ai_agent
 from app.services import user_store as us
+from app.services import project_store as ps
 from app.services.auth import (
     get_current_user, create_session_token, SESSION_COOKIE,
 )
 from app.models.ticket import STATUSES, PRIORITIES, TYPES
 from app.models.user import ROLES, PERMISSIONS
+from app.models.project import PROJECT_STATUSES, PROJECT_COLORS
 
 app = FastAPI(title="JIRAAgent")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -229,10 +231,12 @@ async def ticket_detail(request: Request, ticket_id: str):
         raise HTTPException(status_code=404, detail="Ticket not found")
     sprints = ts.list_sprints()
     all_users = us.list_users()
+    projects = ps.list_projects()
+    milestones = ps.list_milestones(ticket.project_id) if ticket.project_id else []
     return templates.TemplateResponse("ticket_detail.html", _ctx(
         request, ticket=ticket, sprints=sprints,
         statuses=STATUSES, priorities=PRIORITIES, types=TYPES,
-        all_users=all_users,
+        all_users=all_users, projects=projects, milestones=milestones,
     ))
 
 
@@ -442,3 +446,151 @@ async def api_board(request: Request, sprint_id: Optional[str] = None):
 async def api_users(request: Request):
     _require(request)
     return JSONResponse([u.to_safe_dict() for u in us.list_users() if u.active])
+
+
+# ── Projects: pages ───────────────────────────────────────────────────────────
+
+@app.get("/projects", response_class=HTMLResponse)
+async def projects_page(request: Request):
+    _require(request)
+    projects = ps.list_projects()
+    project_data = []
+    for p in projects:
+        tickets = ts.list_tickets(project_id=p.id)
+        stats = ps.project_stats(p.id, tickets)
+        milestones = ps.list_milestones(p.id)
+        project_data.append({"project": p, "stats": stats, "milestones": milestones})
+    return templates.TemplateResponse("projects.html", _ctx(
+        request, project_data=project_data, project_statuses=PROJECT_STATUSES,
+        project_colors=PROJECT_COLORS,
+    ))
+
+
+@app.get("/projects/{project_id}", response_class=HTMLResponse)
+async def project_detail(request: Request, project_id: str):
+    _require(request)
+    project = ps.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    tickets = ts.list_tickets(project_id=project_id)
+    milestones = ps.list_milestones(project_id)
+    stats = ps.project_stats(project_id, tickets)
+    all_tickets = ts.list_tickets()  # for linking
+    sprints = ts.list_sprints()
+    all_users = us.list_users()
+    return templates.TemplateResponse("project_detail.html", _ctx(
+        request, project=project, tickets=tickets, milestones=milestones,
+        stats=stats, all_tickets=all_tickets, sprints=sprints,
+        all_users=all_users, project_statuses=PROJECT_STATUSES,
+        statuses=STATUSES, priorities=PRIORITIES, types=TYPES,
+    ))
+
+
+# ── Projects: API ─────────────────────────────────────────────────────────────
+
+@app.post("/api/projects")
+async def api_create_project(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(""),
+    status: str = Form("Active"),
+    color: str = Form(""),
+):
+    user = _require(request, "manage_sprints")
+    ps.create_project(name=name, description=description, status=status,
+                      color=color or "", owner=user.display_name)
+    return RedirectResponse("/projects", status_code=303)
+
+
+@app.post("/api/projects/{project_id}/update")
+async def api_update_project(
+    request: Request,
+    project_id: str,
+    name: str = Form(None),
+    description: str = Form(None),
+    status: str = Form(None),
+    color: str = Form(None),
+):
+    _require(request, "manage_sprints")
+    fields = {k: v for k, v in
+              {"name": name, "description": description, "status": status, "color": color}.items()
+              if v is not None}
+    ps.update_project(project_id, **fields)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@app.post("/api/projects/{project_id}/delete")
+async def api_delete_project(request: Request, project_id: str):
+    _require(request, "manage_sprints")
+    ps.delete_project(project_id)
+    return RedirectResponse("/projects", status_code=303)
+
+
+# ── Milestones: API ───────────────────────────────────────────────────────────
+
+@app.post("/api/projects/{project_id}/milestones")
+async def api_create_milestone(
+    request: Request,
+    project_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+    due_date: str = Form(""),
+):
+    _require(request, "manage_sprints")
+    ps.create_milestone(project_id=project_id, name=name,
+                        description=description, due_date=due_date or None)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@app.post("/api/milestones/{milestone_id}/update")
+async def api_update_milestone(
+    request: Request,
+    milestone_id: str,
+    name: str = Form(None),
+    description: str = Form(None),
+    due_date: str = Form(None),
+    status: str = Form(None),
+):
+    _require(request, "manage_sprints")
+    fields = {}
+    if name: fields["name"] = name
+    if description is not None: fields["description"] = description
+    if due_date is not None: fields["due_date"] = due_date or None
+    if status: fields["status"] = status
+    ms = ps.update_milestone(milestone_id, **fields)
+    project_id = ms.project_id if ms else ""
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+@app.post("/api/milestones/{milestone_id}/delete")
+async def api_delete_milestone(request: Request, milestone_id: str):
+    _require(request, "manage_sprints")
+    ms = ps.get_milestone(milestone_id)
+    project_id = ms.project_id if ms else ""
+    ps.delete_milestone(milestone_id)
+    return RedirectResponse(f"/projects/{project_id}", status_code=303)
+
+
+# ── Ticket ↔ Project/Milestone linking ───────────────────────────────────────
+
+@app.post("/api/tickets/{ticket_id}/link")
+async def api_link_ticket(
+    request: Request,
+    ticket_id: str,
+    project_id: str = Form(""),
+    milestone_id: str = Form(""),
+):
+    _require(request, "edit_any_ticket")
+    fields = {
+        "project_id": project_id or None,
+        "milestone_id": milestone_id or None,
+    }
+    ts.update_ticket(ticket_id, **fields)
+    return RedirectResponse(f"/tickets/{ticket_id}", status_code=303)
+
+
+@app.get("/api/projects/{project_id}/stats")
+async def api_project_stats(request: Request, project_id: str):
+    _require(request)
+    tickets = ts.list_tickets(project_id=project_id)
+    return JSONResponse(ps.project_stats(project_id, tickets))

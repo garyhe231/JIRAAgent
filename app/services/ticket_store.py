@@ -55,6 +55,8 @@ def create_ticket(
     sprint_id: Optional[str] = None,
     story_points: Optional[int] = None,
     parent_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+    milestone_id: Optional[str] = None,
 ) -> Ticket:
     now = _now()
     ticket = Ticket(
@@ -74,6 +76,8 @@ def create_ticket(
         updated_at=now,
         comments=[],
         parent_id=parent_id,
+        project_id=project_id,
+        milestone_id=milestone_id,
     )
     _save_ticket(ticket)
     return ticket
@@ -107,6 +111,8 @@ def list_tickets(
     type: Optional[str] = None,
     label: Optional[str] = None,
     backlog_only: bool = False,
+    project_id: Optional[str] = None,
+    milestone_id: Optional[str] = None,
 ) -> List[Ticket]:
     tickets = []
     if not os.path.exists(TICKETS_DIR):
@@ -129,6 +135,10 @@ def list_tickets(
         tickets = [t for t in tickets if label in t.labels]
     if backlog_only:
         tickets = [t for t in tickets if t.sprint_id is None and t.status != "Done"]
+    if project_id:
+        tickets = [t for t in tickets if t.project_id == project_id]
+    if milestone_id:
+        tickets = [t for t in tickets if t.milestone_id == milestone_id]
 
     tickets.sort(key=lambda t: t.created_at, reverse=True)
     return tickets

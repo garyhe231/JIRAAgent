@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Projects — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Projects</h1>
+  {% if current_user and current_user.can('manage_sprints') %}
+  <button class="btn-primary" onclick="document.getElementById('new-project-modal').style.display='flex'">
+    + New Project
+  </button>
+  {% endif %}
+</div>
+
+{% if project_data %}
+<div class="projects-grid">
+  {% for item in project_data %}
+  {% set p = item.project %}
+  {% set s = item.stats %}
+  <div class="project-card" onclick="location.href='/projects/{{ p.id }}'">
+    <div class="project-card-header">
+      <div class="project-color-bar" style="background:{{ p.color }}"></div>
+      <div class="project-card-body">
+        <div class="project-card-top">
+          <span class="project-key" style="color:{{ p.color }}">{{ p.key }}</span>
+          <span class="project-status-tag status-{{ p.status.lower().replace(' ','-') }}">{{ p.status }}</span>
+        </div>
+        <div class="project-name">{{ p.name }}</div>
+        <div class="project-desc">{{ p.description[:80] }}{% if p.description|length > 80 %}…{% endif %}</div>
+      </div>
+    </div>
+
+    <!-- Health gauge -->
+    <div class="health-row">
+      <div class="health-bar-wrap">
+        <div class="health-bar" style="width:{{ s.health }}%; background:{{ s.health_color }}"></div>
+      </div>
+      <span class="health-label" style="color:{{ s.health_color }}">{{ s.health_label }}</span>
+    </div>
+
+    <!-- Stats row -->
+    <div class="project-stats-row">
+      <div class="pstat"><span class="pstat-num">{{ s.total }}</span><span class="pstat-lbl">Tickets</span></div>
+      <div class="pstat"><span class="pstat-num" style="color:#4f7ef8">{{ s.in_progress }}</span><span class="pstat-lbl">In Progress</span></div>
+      <div class="pstat"><span class="pstat-num" style="color:#22c55e">{{ s.done }}</span><span class="pstat-lbl">Done</span></div>
+      {% if s.blocked > 0 %}
+      <div class="pstat"><span class="pstat-num" style="color:#ef4444">{{ s.blocked }}</span><span class="pstat-lbl">Blocked</span></div>
+      {% endif %}
+    </div>
+
+    <!-- Milestone progress -->
+    {% if item.milestones %}
+    <div class="milestone-mini-list">
+      {% for m in item.milestones[:3] %}
+      <div class="milestone-mini">
+        <span class="ms-dot ms-{{ m.status.lower() }}"></span>
+        <span class="ms-name">{{ m.name }}</span>
+        {% if m.due_date %}<span class="ms-date">{{ m.due_date }}</span>{% endif %}
+      </div>
+      {% endfor %}
+      {% if item.milestones|length > 3 %}
+      <div class="milestone-mini muted">+{{ item.milestones|length - 3 }} more</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="project-owner">Owner: {{ p.owner }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state center">
+  No projects yet.
+  {% if current_user and current_user.can('manage_sprints') %}
+  <button class="btn-primary" style="margin-top:12px" onclick="document.getElementById('new-project-modal').style.display='flex'">
+    Create your first project
+  </button>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- New Project Modal -->
+{% if current_user and current_user.can('manage_sprints') %}
+<div id="new-project-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Project</h2>
+      <button class="modal-close" onclick="document.getElementById('new-project-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/projects">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Project Name *</label>
+          <input type="text" name="name" required placeholder="e.g. Authentication Service"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="2" placeholder="What is this project about?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in project_statuses %}
+            <option value="{{ s }}" {% if s == 'Active' %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Color</label>
+          <div class="color-picker-row">
+            {% for c in project_colors %}
+            <label class="color-swatch-label">
+              <input type="radio" name="color" value="{{ c }}" {% if loop.first %}checked{% endif %} style="display:none"/>
+              <span class="color-swatch" style="background:{{ c }}"></span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('new-project-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create Project</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// Highlight selected color swatch
+document.querySelectorAll('.color-swatch-label input').forEach(inp => {
+  inp.addEventListener('change', () => {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    inp.nextElementSibling.classList.add('selected');
+  });
+});
+document.querySelector('.color-swatch-label input:checked')
+  ?.nextElementSibling.classList.add('selected');
+</script>
+{% endblock %}

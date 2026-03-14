@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb"><a href="/projects">Projects</a> / <span style="color:{{ project.color }}">{{ project.key }}</span></div>
+  <div class="header-actions">
+    {% if current_user and current_user.can('manage_sprints') %}
+    <button class="btn-small" onclick="document.getElementById('edit-project-modal').style.display='flex'">Edit</button>
+    <form method="post" action="/api/projects/{{ project.id }}/delete"
+          onsubmit="return confirm('Delete project {{ project.name }}? Tickets will remain.')">
+      <button type="submit" class="btn-danger">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Project header -->
+<div class="project-hero" style="border-left:4px solid {{ project.color }}">
+  <div>
+    <div class="project-hero-key" style="color:{{ project.color }}">{{ project.key }}</div>
+    <h1 class="project-hero-name">{{ project.name }}</h1>
+    <p class="project-hero-desc">{{ project.description or 'No description.' }}</p>
+    <div class="project-meta-row">
+      <span class="project-status-tag status-{{ project.status.lower().replace(' ','-') }}">{{ project.status }}</span>
+      <span class="meta-item">Owner: <strong>{{ project.owner }}</strong></span>
+      <span class="meta-item">Created: {{ project.created_at[:10] }}</span>
+    </div>
+  </div>
+  <!-- Health gauge -->
+  <div class="health-gauge-box">
+    <div class="health-circle" style="--health:{{ stats.health }}; --color:{{ stats.health_color }}">
+      <span class="health-num" style="color:{{ stats.health_color }}">{{ stats.health }}</span>
+      <span class="health-sub">Health</span>
+    </div>
+    <div class="health-label-big" style="color:{{ stats.health_color }}">{{ stats.health_label }}</div>
+  </div>
+</div>
+
+<!-- Stats strip -->
+<div class="project-stats-strip">
+  <div class="pstat-box"><div class="pstat-big">{{ stats.total }}</div><div class="pstat-lbl">Total Tickets</div></div>
+  <div class="pstat-box accent-blue"><div class="pstat-big">{{ stats.in_progress }}</div><div class="pstat-lbl">In Progress</div></div>
+  <div class="pstat-box accent-green"><div class="pstat-big">{{ stats.done }}</div><div class="pstat-lbl">Done</div></div>
+  <div class="pstat-box {% if stats.blocked > 0 %}accent-red{% endif %}"><div class="pstat-big">{{ stats.blocked }}</div><div class="pstat-lbl">Blocked</div></div>
+  <div class="pstat-box"><div class="pstat-big">{{ stats.points_done }}/{{ stats.points_total }}</div><div class="pstat-lbl">Story Points</div></div>
+  <div class="pstat-box"><div class="pstat-big">{{ stats.milestones_done }}/{{ stats.milestones_total }}</div><div class="pstat-lbl">Milestones</div></div>
+</div>
+
+<div class="project-detail-grid">
+  <!-- Left: Milestones + Tickets -->
+  <div class="project-main">
+
+    <!-- Milestones -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Milestones</h2>
+        {% if current_user and current_user.can('manage_sprints') %}
+        <button class="btn-small accent" onclick="document.getElementById('new-ms-modal').style.display='flex'">+ Milestone</button>
+        {% endif %}
+      </div>
+      {% if milestones %}
+      <div class="milestone-timeline">
+        {% for m in milestones %}
+        {% set ms_tickets = tickets | selectattr('milestone_id', 'equalto', m.id) | list %}
+        {% set ms_done = ms_tickets | selectattr('status', 'equalto', 'Done') | list | length %}
+        {% set ms_total = ms_tickets | length %}
+        {% set ms_pct = (ms_done / ms_total * 100) | int if ms_total > 0 else 0 %}
+        <div class="milestone-row ms-status-{{ m.status.lower() }}">
+          <div class="ms-connector"></div>
+          <div class="ms-dot-large ms-{{ m.status.lower() }}"></div>
+          <div class="ms-content">
+            <div class="ms-header">
+              <span class="ms-name-lg">{{ m.name }}</span>
+              <span class="ms-status-tag ms-{{ m.status.lower() }}">{{ m.status }}</span>
+              {% if m.due_date %}<span class="ms-due">Due {{ m.due_date }}</span>{% endif %}
+              {% if current_user and current_user.can('manage_sprints') %}
+              <button class="btn-small" onclick="showEditMilestone('{{ m.id }}','{{ m.name }}','{{ m.description }}','{{ m.due_date or '' }}','{{ m.status }}')">Edit</button>
+              <form method="post" action="/api/milestones/{{ m.id }}/delete" style="display:inline"
+                    onsubmit="return confirm('Delete milestone?')">
+                <button type="submit" class="btn-small danger-small">Del</button>
+              </form>
+              {% endif %}
+            </div>
+            {% if m.description %}<div class="ms-desc">{{ m.description }}</div>{% endif %}
+            {% if ms_total > 0 %}
+            <div class="ms-progress">
+              <div class="progress-bar"><div class="progress-fill" style="width:{{ ms_pct }}%"></div></div>
+              <span class="progress-label">{{ ms_done }}/{{ ms_total }} tickets ({{ ms_pct }}%)</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">No milestones yet.</div>
+      {% endif %}
+    </div>
+
+    <!-- Tickets -->
+    <div class="panel" style="margin-top:20px">
+      <div class="panel-header">
+        <h2>Tickets ({{ tickets|length }})</h2>
+        {% if current_user and current_user.can('create_ticket') %}
+        <button class="btn-small accent" onclick="document.getElementById('new-ticket-modal').style.display='flex'">+ Ticket</button>
+        {% endif %}
+      </div>
+      {% if tickets %}
+      <table class="backlog-table">
+        <thead><tr>
+          <th>Key</th><th>Type</th><th>Title</th><th>Priority</th>
+          <th>Status</th><th>Assignee</th><th>Milestone</th>
+        </tr></thead>
+        <tbody>
+        {% for t in tickets %}
+        <tr class="backlog-row" onclick="location.href='/tickets/{{ t.id }}'">
+          <td><span class="ticket-key">{{ t.key }}</span></td>
+          <td><span class="type-badge type-{{ t.type.lower() }}">{{ t.type }}</span></td>
+          <td class="ticket-title-cell">{{ t.title }}</td>
+          <td><span class="priority-tag priority-{{ t.priority.lower() }}">{{ t.priority }}</span></td>
+          <td><span class="status-tag status-{{ t.status.lower().replace(' ','-') }}">{{ t.status }}</span></td>
+          <td>{{ t.assignee }}</td>
+          <td>
+            {% if t.milestone_id %}
+              {% for m in milestones %}{% if m.id == t.milestone_id %}<span class="label-chip">{{ m.name }}</span>{% endif %}{% endfor %}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No tickets linked to this project yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: breakdown charts -->
+  <div class="project-sidebar-col">
+    <div class="panel">
+      <div class="panel-header"><h2>By Status</h2></div>
+      <div class="breakdown-list">
+        {% for label, count in stats.by_status.items() %}
+        {% set pct = (count / stats.total * 100) | int if stats.total > 0 else 0 %}
+        <div class="breakdown-row">
+          <span class="breakdown-label">{{ label }}</span>
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-bar status-bar-{{ label.lower().replace(' ','-') }}" style="width:{{ pct }}%"></div>
+          </div>
+          <span class="breakdown-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><h2>By Priority</h2></div>
+      <div class="breakdown-list">
+        {% for label, count in stats.by_priority.items() %}
+        {% set pct = (count / stats.total * 100) | int if stats.total > 0 else 0 %}
+        <div class="breakdown-row">
+          <span class="breakdown-label">{{ label }}</span>
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-bar priority-bar-{{ label.lower() }}" style="width:{{ pct }}%"></div>
+          </div>
+          <span class="breakdown-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><h2>By Type</h2></div>
+      <div class="breakdown-list">
+        {% for label, count in stats.by_type.items() %}
+        {% set pct = (count / stats.total * 100) | int if stats.total > 0 else 0 %}
+        <div class="breakdown-row">
+          <span class="breakdown-label">{{ label }}</span>
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-bar type-bar-{{ label.lower() }}" style="width:{{ pct }}%"></div>
+          </div>
+          <span class="breakdown-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Link existing ticket to this project -->
+    {% if current_user and current_user.can('edit_any_ticket') %}
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><h2>Link Ticket</h2></div>
+      <form method="post" id="link-ticket-form" action="" onsubmit="setLinkAction(event)">
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Ticket</label>
+          <select name="ticket_sel" id="link-ticket-sel">
+            <option value="">-- select ticket --</option>
+            {% for t in all_tickets %}
+            {% if t.project_id != project.id %}
+            <option value="{{ t.id }}">{{ t.key }} — {{ t.title[:40] }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Milestone (optional)</label>
+          <select name="milestone_id">
+            <option value="">None</option>
+            {% for m in milestones %}
+            <option value="{{ m.id }}">{{ m.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <input type="hidden" name="project_id" value="{{ project.id }}"/>
+        <button type="submit" class="btn-primary" style="width:100%">Link to Project</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- New Milestone Modal -->
+{% if current_user and current_user.can('manage_sprints') %}
+<div id="new-ms-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Milestone</h2>
+      <button class="modal-close" onclick="document.getElementById('new-ms-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/projects/{{ project.id }}/milestones">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Name *</label>
+          <input type="text" name="name" required placeholder="e.g. v1.0 Release"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="2" placeholder="What does this milestone represent?"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>Due Date</label>
+          <input type="date" name="due_date"/>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('new-ms-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create Milestone</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Milestone Modal -->
+<div id="edit-ms-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Milestone</h2>
+      <button class="modal-close" onclick="document.getElementById('edit-ms-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" id="edit-ms-form" action="">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Name</label>
+          <input type="text" name="name" id="edit-ms-name"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" id="edit-ms-desc" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input type="date" name="due_date" id="edit-ms-due"/>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status" id="edit-ms-status">
+            <option value="Open">Open</option>
+            <option value="Completed">Completed</option>
+            <option value="Overdue">Overdue</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('edit-ms-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div id="edit-project-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Project</h2>
+      <button class="modal-close" onclick="document.getElementById('edit-project-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/projects/{{ project.id }}/update">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Name</label>
+          <input type="text" name="name" value="{{ project.name }}"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="2">{{ project.description }}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in project_statuses %}
+            <option value="{{ s }}" {% if project.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('edit-project-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function showEditMilestone(id, name, desc, due, status) {
+  document.getElementById('edit-ms-form').action = `/api/milestones/${id}/update`;
+  document.getElementById('edit-ms-name').value = name;
+  document.getElementById('edit-ms-desc').value = desc;
+  document.getElementById('edit-ms-due').value = due;
+  document.getElementById('edit-ms-status').value = status;
+  document.getElementById('edit-ms-modal').style.display = 'flex';
+}
+
+function setLinkAction(e) {
+  e.preventDefault();
+  const ticketId = document.getElementById('link-ticket-sel').value;
+  if (!ticketId) return;
+  document.getElementById('link-ticket-form').action = `/api/tickets/${ticketId}/link`;
+  document.getElementById('link-ticket-form').submit();
+}
+</script>
+{% endblock %}
