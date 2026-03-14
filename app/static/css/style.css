@@ -971,3 +971,37 @@ a:hover { text-decoration: underline; }
 .type-bar-story { background: #a855f7; }
 .type-bar-epic { background: #f97316; }
 .type-bar-improvement { background: #06b6d4; }
+
+/* ── Reports & Analytics ──────────────────────────────────── */
+.kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.kpi-card.accent-blue { border-left: 3px solid #4f7ef8; }
+.kpi-card.accent-green { border-left: 3px solid #22c55e; }
+.kpi-card.accent-red { border-left: 3px solid #ef4444; }
+.kpi-val { font-size: 28px; font-weight: 700; color: #e2e8f0; line-height: 1.1; }
+.kpi-lbl { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+
+.charts-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.charts-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.chart-panel.wide { grid-column: span 1; }
+.chart-panel-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.chart-panel-header h3 { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+.chart-subtitle { font-size: 12px; color: var(--text-muted); }
+.chart-wrap { position: relative; height: 220px; }
+.chart-wrap.donut-wrap { height: 200px; }
+
+.range-tabs { display: flex; gap: 4px; }
+.range-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.range-btn:hover { background: #2a3347; color: #e2e8f0; }
+.range-btn.active { background: rgba(79,126,248,.15); border-color: #4f7ef8; color: #4f7ef8; }
+
+.sprint-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+.aging-table-wrap { overflow-x: auto; }
+
+@media (max-width: 900px) {
+  .charts-row-2 { grid-template-columns: 1fr; }
+  .charts-row-3 { grid-template-columns: 1fr; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}

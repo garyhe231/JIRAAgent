@@ -9,6 +9,7 @@ from app.services import ticket_store as ts
 from app.services import ai_agent
 from app.services import user_store as us
 from app.services import project_store as ps
+from app.services import analytics
 from app.services.auth import (
     get_current_user, create_session_token, SESSION_COOKIE,
 )
@@ -198,6 +199,29 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", _ctx(
         request, active_sprint=active_sprint, sprints=sprints, stats=stats,
     ))
+
+
+@app.get("/reports", response_class=HTMLResponse)
+async def reports_page(request: Request):
+    _require(request)
+    sprints = ts.list_sprints()
+    active_sprint = ts.get_active_sprint()
+    projects = ps.list_projects()
+    return templates.TemplateResponse("reports.html", _ctx(
+        request, sprints=sprints, active_sprint=active_sprint, projects=projects,
+    ))
+
+
+@app.get("/api/reports/data")
+async def api_reports_data(request: Request, days: Optional[int] = 30):
+    _require(request)
+    return JSONResponse(analytics.full_report(days))
+
+
+@app.get("/api/reports/burndown/{sprint_id}")
+async def api_burndown(request: Request, sprint_id: str):
+    _require(request)
+    return JSONResponse(analytics.sprint_burndown(sprint_id))
 
 
 @app.get("/board", response_class=HTMLResponse)

@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Reports & Analytics — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Reports & Analytics</h1>
+  <div class="header-actions">
+    <!-- Date range filter -->
+    <div class="range-tabs" id="range-tabs">
+      <button class="range-btn active" data-days="7">7d</button>
+      <button class="range-btn" data-days="30">30d</button>
+      <button class="range-btn" data-days="90">90d</button>
+      <button class="range-btn" data-days="">All</button>
+    </div>
+    <!-- Sprint selector for burndown -->
+    {% if sprints %}
+    <select id="burndown-sprint-sel" class="sprint-select">
+      {% for s in sprints %}
+      {% if s.status in ['Active', 'Completed'] %}
+      <option value="{{ s.id }}" {% if active_sprint and s.id == active_sprint.id %}selected{% endif %}>
+        {{ s.name }}
+      </option>
+      {% endif %}
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" id="kpi-strip">
+  <div class="kpi-card" id="kpi-total"><div class="kpi-val">—</div><div class="kpi-lbl">Total Tickets</div></div>
+  <div class="kpi-card accent-blue" id="kpi-progress"><div class="kpi-val">—</div><div class="kpi-lbl">In Progress</div></div>
+  <div class="kpi-card accent-green" id="kpi-done"><div class="kpi-val">—</div><div class="kpi-lbl">Done</div></div>
+  <div class="kpi-card" id="kpi-rate"><div class="kpi-val">—%</div><div class="kpi-lbl">Completion Rate</div></div>
+  <div class="kpi-card accent-red" id="kpi-blocked"><div class="kpi-val">—</div><div class="kpi-lbl">Blocked</div></div>
+  <div class="kpi-card accent-red" id="kpi-critical"><div class="kpi-val">—</div><div class="kpi-lbl">Critical</div></div>
+  <div class="kpi-card" id="kpi-bugs"><div class="kpi-val">—</div><div class="kpi-lbl">Bugs</div></div>
+</div>
+
+<!-- Row 1: Created vs Resolved + Burndown -->
+<div class="charts-row-2">
+  <div class="chart-panel wide">
+    <div class="chart-panel-header">
+      <h3>Created vs Resolved</h3>
+      <span class="chart-subtitle" id="cvr-subtitle"></span>
+    </div>
+    <div class="chart-wrap"><canvas id="cvrChart"></canvas></div>
+  </div>
+  <div class="chart-panel">
+    <div class="chart-panel-header">
+      <h3>Sprint Burndown</h3>
+      <span class="chart-subtitle" id="burndown-subtitle"></span>
+    </div>
+    <div class="chart-wrap"><canvas id="burndownChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 2: Status donut + Priority donut + Type bar -->
+<div class="charts-row-3">
+  <div class="chart-panel">
+    <div class="chart-panel-header"><h3>By Status</h3></div>
+    <div class="chart-wrap donut-wrap"><canvas id="statusChart"></canvas></div>
+  </div>
+  <div class="chart-panel">
+    <div class="chart-panel-header"><h3>By Priority</h3></div>
+    <div class="chart-wrap donut-wrap"><canvas id="priorityChart"></canvas></div>
+  </div>
+  <div class="chart-panel">
+    <div class="chart-panel-header"><h3>By Type</h3></div>
+    <div class="chart-wrap"><canvas id="typeChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 3: Velocity + Workload -->
+<div class="charts-row-2">
+  <div class="chart-panel">
+    <div class="chart-panel-header">
+      <h3>Sprint Velocity</h3>
+      <span class="chart-subtitle">Story points committed vs completed</span>
+    </div>
+    <div class="chart-wrap"><canvas id="velocityChart"></canvas></div>
+  </div>
+  <div class="chart-panel">
+    <div class="chart-panel-header">
+      <h3>Bug Rate vs Feature Rate</h3>
+      <span class="chart-subtitle">Tickets created per week</span>
+    </div>
+    <div class="chart-wrap"><canvas id="bugRateChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 4: Workload full-width -->
+<div class="chart-panel" style="margin-bottom:20px">
+  <div class="chart-panel-header">
+    <h3>Workload by Assignee</h3>
+    <span class="chart-subtitle">Open tickets per team member</span>
+  </div>
+  <div class="chart-wrap" style="height:260px"><canvas id="workloadChart"></canvas></div>
+</div>
+
+<!-- Row 5: Ticket aging table -->
+<div class="chart-panel" style="margin-bottom:20px">
+  <div class="chart-panel-header"><h3>Ticket Aging</h3><span class="chart-subtitle">Oldest open tickets</span></div>
+  <div class="aging-table-wrap">
+    <table class="backlog-table" id="aging-table">
+      <thead><tr>
+        <th>Key</th><th>Title</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Age</th><th>Bar</th>
+      </tr></thead>
+      <tbody id="aging-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Chart.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#8896af', font: { size: 12 } } } },
+};
+
+Chart.defaults.color = '#8896af';
+Chart.defaults.borderColor = '#2a3347';
+
+let charts = {};
+let currentDays = 7;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderKPIs(o) {
+  document.getElementById('kpi-total').querySelector('.kpi-val').textContent = o.total;
+  document.getElementById('kpi-progress').querySelector('.kpi-val').textContent = o.in_progress;
+  document.getElementById('kpi-done').querySelector('.kpi-val').textContent = o.done;
+  document.getElementById('kpi-rate').querySelector('.kpi-val').textContent = o.completion_rate + '%';
+  document.getElementById('kpi-blocked').querySelector('.kpi-val').textContent = o.blocked;
+  document.getElementById('kpi-critical').querySelector('.kpi-val').textContent = o.critical;
+  document.getElementById('kpi-bugs').querySelector('.kpi-val').textContent = o.bugs;
+}
+
+function renderStatus(d) {
+  destroyChart('statusChart');
+  charts.statusChart = new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: { labels: d.labels, datasets: [{ data: d.data, backgroundColor: d.colors, borderWidth: 2, borderColor: '#161b27' }] },
+    options: { ...CHART_DEFAULTS, cutout: '65%' },
+  });
+}
+
+function renderPriority(d) {
+  destroyChart('priorityChart');
+  charts.priorityChart = new Chart(document.getElementById('priorityChart'), {
+    type: 'doughnut',
+    data: { labels: d.labels, datasets: [{ data: d.data, backgroundColor: d.colors, borderWidth: 2, borderColor: '#161b27' }] },
+    options: { ...CHART_DEFAULTS, cutout: '65%' },
+  });
+}
+
+function renderType(d) {
+  destroyChart('typeChart');
+  charts.typeChart = new Chart(document.getElementById('typeChart'), {
+    type: 'bar',
+    data: {
+      labels: d.labels,
+      datasets: [{ data: d.data, backgroundColor: d.colors, borderRadius: 4 }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+        y: { ticks: { color: '#8896af', stepSize: 1 }, grid: { color: '#1e2535' } },
+      },
+    },
+  });
+}
+
+function renderCVR(d, days) {
+  destroyChart('cvrChart');
+  document.getElementById('cvr-subtitle').textContent = `Last ${days || 'all'} days`;
+  charts.cvrChart = new Chart(document.getElementById('cvrChart'), {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        { label: 'Created', data: d.created, borderColor: '#4f7ef8', backgroundColor: 'rgba(79,126,248,.1)', fill: true, tension: 0.3, pointRadius: 2 },
+        { label: 'Resolved', data: d.resolved, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.1)', fill: true, tension: 0.3, pointRadius: 2 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        x: { ticks: { color: '#8896af', maxTicksLimit: 10 }, grid: { color: '#1e2535' } },
+        y: { ticks: { color: '#8896af', stepSize: 1 }, grid: { color: '#1e2535' } },
+      },
+    },
+  });
+}
+
+function renderVelocity(d) {
+  destroyChart('velocityChart');
+  if (!d.labels.length) return;
+  charts.velocityChart = new Chart(document.getElementById('velocityChart'), {
+    type: 'bar',
+    data: {
+      labels: d.labels,
+      datasets: [
+        { label: 'Committed (pts)', data: d.committed, backgroundColor: 'rgba(79,126,248,.3)', borderColor: '#4f7ef8', borderWidth: 1, borderRadius: 3 },
+        { label: 'Completed (pts)', data: d.completed_pts, backgroundColor: '#4f7ef8', borderRadius: 3 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        x: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+        y: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+      },
+    },
+  });
+}
+
+function renderWorkload(d) {
+  destroyChart('workloadChart');
+  if (!d.assignees.length) return;
+  const labels = d.assignees.map(a => a.name);
+  charts.workloadChart = new Chart(document.getElementById('workloadChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Done',        data: d.assignees.map(a => a.done),        backgroundColor: '#22c55e', borderRadius: 3, stack: 'a' },
+        { label: 'In Review',   data: d.assignees.map(a => a.in_review),   backgroundColor: '#a855f7', borderRadius: 0, stack: 'a' },
+        { label: 'In Progress', data: d.assignees.map(a => a.in_progress), backgroundColor: '#4f7ef8', borderRadius: 0, stack: 'a' },
+        { label: 'To Do',       data: d.assignees.map(a => a.todo),        backgroundColor: '#64748b', borderRadius: 0, stack: 'a' },
+        { label: 'Backlog',     data: d.assignees.map(a => a.backlog),     backgroundColor: '#2a3347', borderRadius: 0, stack: 'a' },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        x: { stacked: true, ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+        y: { stacked: true, ticks: { color: '#8896af', stepSize: 1 }, grid: { color: '#1e2535' } },
+      },
+    },
+  });
+}
+
+function renderBugRate(d) {
+  destroyChart('bugRateChart');
+  charts.bugRateChart = new Chart(document.getElementById('bugRateChart'), {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        { label: 'Bugs', data: d.bugs, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,.1)', fill: true, tension: 0.3, pointRadius: 3 },
+        { label: 'Features', data: d.features, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.1)', fill: true, tension: 0.3, pointRadius: 3 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        x: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+        y: { ticks: { color: '#8896af', stepSize: 1 }, grid: { color: '#1e2535' } },
+      },
+    },
+  });
+}
+
+function renderBurndown(d) {
+  destroyChart('burndownChart');
+  document.getElementById('burndown-subtitle').textContent = d.sprint_name || '';
+  if (!d.labels || !d.labels.length) {
+    document.getElementById('burndown-subtitle').textContent = 'No data';
+    return;
+  }
+  charts.burndownChart = new Chart(document.getElementById('burndownChart'), {
+    type: 'line',
+    data: {
+      labels: d.labels,
+      datasets: [
+        { label: 'Ideal', data: d.ideal, borderColor: '#2a3347', borderDash: [5,5], pointRadius: 0, tension: 0 },
+        { label: 'Actual', data: d.actual, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.1)', fill: true, tension: 0.2, pointRadius: 3 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        x: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' } },
+        y: { ticks: { color: '#8896af' }, grid: { color: '#1e2535' }, title: { display: true, text: 'Points Remaining', color: '#8896af' } },
+      },
+    },
+  });
+}
+
+function renderAging(rows) {
+  const maxAge = rows.length ? rows[0].age_days : 1;
+  const priorityColors = { Critical: '#ef4444', High: '#f97316', Medium: '#f59e0b', Low: '#94a3b8' };
+  const tbody = document.getElementById('aging-tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr class="backlog-row" style="cursor:default">
+      <td><span class="ticket-key">${r.key}</span></td>
+      <td class="ticket-title-cell">${r.title}</td>
+      <td><span class="status-tag status-${r.status.toLowerCase().replace(/ /g,'-')}">${r.status}</span></td>
+      <td><span class="priority-tag priority-${r.priority.toLowerCase()}">${r.priority}</span></td>
+      <td>${r.assignee}</td>
+      <td><strong>${r.age_days}d</strong></td>
+      <td style="width:120px">
+        <div style="height:6px;background:#1e2535;border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(r.age_days/maxAge*100,100)}%;background:${priorityColors[r.priority]||'#8896af'};border-radius:3px"></div>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ── Load all data ─────────────────────────────────────────────────────────────
+async function loadReport(days) {
+  currentDays = days;
+  const url = days ? `/api/reports/data?days=${days}` : `/api/reports/data`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+
+  renderKPIs(data.overview);
+  renderStatus(data.by_status);
+  renderPriority(data.by_priority);
+  renderType(data.by_type);
+  renderCVR(data.created_vs_resolved, days);
+  renderVelocity(data.velocity);
+  renderWorkload(data.workload);
+  renderBugRate(data.bug_rate);
+  renderAging(data.aging);
+  if (data.burndown && data.burndown.labels) renderBurndown(data.burndown);
+}
+
+async function loadBurndown(sprintId) {
+  const resp = await fetch(`/api/reports/burndown/${sprintId}`);
+  const data = await resp.json();
+  renderBurndown(data);
+}
+
+// Range tab click
+document.querySelectorAll('.range-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const days = btn.dataset.days ? parseInt(btn.dataset.days) : null;
+    loadReport(days);
+  });
+});
+
+// Burndown sprint selector
+const burndownSel = document.getElementById('burndown-sprint-sel');
+if (burndownSel) {
+  burndownSel.addEventListener('change', () => loadBurndown(burndownSel.value));
+}
+
+// Initial load
+loadReport(7);
+{% if active_sprint %}
+// Load burndown after main data
+setTimeout(() => loadBurndown('{{ active_sprint.id }}'), 200);
+{% endif %}
+</script>
+{% endblock %}
