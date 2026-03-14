@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign In — JIRAAgent</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="auth-body">
+<div class="auth-card">
+  <div class="auth-logo">
+    <span class="logo-icon">&#9670;</span>
+    <span class="logo-text">JIRAAgent</span>
+  </div>
+  <h2 class="auth-title">Sign in to your workspace</h2>
+
+  {% if error %}
+  <div class="auth-error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" class="auth-form">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" name="username" autofocus required placeholder="Enter your username"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" required placeholder="Enter your password"/>
+    </div>
+    <button type="submit" class="btn-primary auth-submit">Sign In</button>
+  </form>
+
+  <div class="auth-hint">Default admin: <strong>admin</strong> / <strong>admin123</strong></div>
+</div>
+</body>
+</html>

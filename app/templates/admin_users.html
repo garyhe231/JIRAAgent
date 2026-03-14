@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}User Management — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>User Management</h1>
+  <button class="btn-primary" onclick="document.getElementById('new-user-modal').style.display='flex'">
+    + Invite User
+  </button>
+</div>
+
+{% if error %}
+<div class="alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="users-table-wrap">
+  <table class="backlog-table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Joined</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="backlog-row {% if not u.active %}row-inactive{% endif %}">
+        <td>
+          <div class="user-cell">
+            <div class="avatar sm" style="background:{{ u.avatar_color }}">{{ u.display_name[0].upper() }}</div>
+            <span>{{ u.display_name }}</span>
+            {% if u.id == current_user.id %}<span class="you-badge">you</span>{% endif %}
+          </div>
+        </td>
+        <td><code>{{ u.username }}</code></td>
+        <td>{{ u.email }}</td>
+        <td>
+          {% if u.id != current_user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/role" style="display:inline">
+            <select name="role" onchange="this.form.submit()" class="inline-select">
+              {% for r in roles %}
+              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          {% else %}
+          <span class="role-tag role-{{ u.role.lower() }}">{{ u.role }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="status-dot {% if u.active %}active{% else %}inactive{% endif %}"></span>
+          {{ 'Active' if u.active else 'Inactive' }}
+        </td>
+        <td>{{ u.created_at[:10] }}</td>
+        <td>
+          {% if u.id != current_user.id %}
+          <div class="action-btns">
+            <button class="btn-small" onclick="showResetModal('{{ u.id }}', '{{ u.display_name }}')">Reset PW</button>
+            <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline"
+                  onsubmit="return confirm('{{ 'Deactivate' if u.active else 'Activate' }} {{ u.display_name }}?')">
+              <button type="submit" class="btn-small {% if u.active %}danger-small{% endif %}">
+                {{ 'Deactivate' if u.active else 'Activate' }}
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Invite User Modal -->
+<div id="new-user-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Invite New User</h2>
+      <button class="modal-close" onclick="document.getElementById('new-user-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/admin/users/create">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Username *</label>
+          <input type="text" name="username" required placeholder="e.g. jsmith"/>
+        </div>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" name="display_name" placeholder="e.g. John Smith"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Email *</label>
+          <input type="email" name="email" required placeholder="john@company.com"/>
+        </div>
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" name="password" required placeholder="Temporary password"/>
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select name="role">
+            {% for r in roles %}
+            <option value="{{ r }}" {% if r == 'Developer' %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('new-user-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="reset-pw-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Reset Password — <span id="reset-name"></span></h2>
+      <button class="modal-close" onclick="document.getElementById('reset-pw-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" id="reset-pw-form" action="">
+      <div class="form-group" style="margin-bottom:16px">
+        <label>New Password</label>
+        <input type="password" name="new_password" required placeholder="Enter new password"/>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('reset-pw-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Reset Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Role Legend -->
+<div class="role-legend">
+  <h3>Role Permissions</h3>
+  <div class="role-legend-grid">
+    <div class="role-legend-item">
+      <span class="role-tag role-admin">Admin</span>
+      <span>Full access: manage users, sprints, delete tickets</span>
+    </div>
+    <div class="role-legend-item">
+      <span class="role-tag role-manager">Manager</span>
+      <span>Manage sprints &amp; tickets, no user management</span>
+    </div>
+    <div class="role-legend-item">
+      <span class="role-tag role-developer">Developer</span>
+      <span>Create tickets, edit own, move cards, comment</span>
+    </div>
+    <div class="role-legend-item">
+      <span class="role-tag role-viewer">Viewer</span>
+      <span>Read-only access to all content</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function showResetModal(userId, name) {
+  document.getElementById('reset-name').textContent = name;
+  document.getElementById('reset-pw-form').action = `/admin/users/${userId}/reset-password`;
+  document.getElementById('reset-pw-modal').style.display = 'flex';
+}
+</script>
+{% endblock %}

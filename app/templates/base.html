@@ -28,12 +28,40 @@
     <li><a href="/ai" class="nav-item {% if '/ai' in request.url.path %}active{% endif %}">
       <span class="nav-icon">&#10024;</span> AI Assistant
     </a></li>
+    {% if current_user and current_user.can('manage_users') %}
+    <li class="nav-section-label">Admin</li>
+    <li><a href="/admin/users" class="nav-item {% if '/admin' in request.url.path %}active{% endif %}">
+      <span class="nav-icon">&#128100;</span> Users
+    </a></li>
+    {% endif %}
   </ul>
+
+  {% if current_user %}
+  <div class="sidebar-user">
+    <div class="user-menu" onclick="toggleUserMenu()">
+      <div class="avatar" style="background:{{ current_user.avatar_color }}">
+        {{ current_user.display_name[0].upper() }}
+      </div>
+      <div class="user-info">
+        <div class="user-name">{{ current_user.display_name }}</div>
+        <div class="user-role role-{{ current_user.role.lower() }}">{{ current_user.role }}</div>
+      </div>
+      <span class="chevron">&#8964;</span>
+    </div>
+    <div class="user-dropdown" id="user-dropdown" style="display:none">
+      <a href="/profile" class="dropdown-item">&#9998; Profile</a>
+      <a href="/logout" class="dropdown-item danger">&#10006; Sign Out</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user and current_user.can('create_ticket') %}
   <div class="sidebar-footer">
     <button class="btn-new" onclick="document.getElementById('new-ticket-modal').style.display='flex'">
       + New Ticket
     </button>
   </div>
+  {% endif %}
 </nav>
 
 <main class="main-content">
@@ -41,6 +69,7 @@
 </main>
 
 <!-- New Ticket Modal -->
+{% if current_user and current_user.can('create_ticket') %}
 <div id="new-ticket-modal" class="modal-overlay" style="display:none">
   <div class="modal">
     <div class="modal-header">
@@ -72,7 +101,8 @@
         </div>
         <div class="form-group">
           <label>Assignee</label>
-          <input type="text" name="assignee" placeholder="Unassigned" value="Unassigned"/>
+          <input type="text" name="assignee" id="modal-assignee" placeholder="Unassigned" value="Unassigned" autocomplete="off"/>
+          <div class="assignee-suggestions" id="assignee-suggestions"></div>
         </div>
         <div class="form-group">
           <label>Story Points</label>
@@ -90,6 +120,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 <script src="/static/js/app.js"></script>
 </body>

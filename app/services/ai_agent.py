@@ -76,7 +76,7 @@ def _context_summary() -> str:
     return "\n".join(lines)
 
 
-def chat(history: List[Dict], user_message: str) -> Dict:
+def chat(history: List[Dict], user_message: str, user=None) -> Dict:
     """
     Send a message to the AI. Returns dict with:
       - reply: str (the text to show the user)
@@ -108,12 +108,14 @@ def chat(history: List[Dict], user_message: str) -> Dict:
         action = data.get("action")
 
         if action == "create_ticket":
+            reporter = user.display_name if user else "AI Assistant"
             ticket = create_ticket(
                 title=data.get("title", "Untitled"),
                 description=data.get("description", ""),
                 type=data.get("type", "Task"),
                 priority=data.get("priority", "Medium"),
                 assignee=data.get("assignee", "Unassigned"),
+                reporter=reporter,
                 labels=data.get("labels", []),
                 story_points=data.get("story_points"),
             )

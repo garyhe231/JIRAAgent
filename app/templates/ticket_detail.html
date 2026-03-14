@@ -5,10 +5,12 @@
 <div class="page-header">
   <div class="breadcrumb"><a href="/backlog">Backlog</a> / <span>{{ ticket.key }}</span></div>
   <div class="header-actions">
+    {% if current_user and current_user.can('delete_ticket') %}
     <form method="post" action="/api/tickets/{{ ticket.id }}/delete"
           onsubmit="return confirm('Delete this ticket?')">
       <button type="submit" class="btn-danger">Delete</button>
     </form>
+    {% endif %}
   </div>
 </div>
 
@@ -47,8 +49,10 @@
       <div class="comments-list">
         {% for c in ticket.comments %}
         <div class="comment">
-          <div class="comment-author">{{ c.author }}</div>
-          <div class="comment-time">{{ c.created_at[:16].replace('T', ' ') }}</div>
+          <div class="comment-meta">
+            <span class="comment-author">{{ c.author }}</span>
+            <span class="comment-time">{{ c.created_at[:16].replace('T', ' ') }}</span>
+          </div>
           <div class="comment-body">{{ c.body }}</div>
         </div>
         {% endfor %}
@@ -57,25 +61,35 @@
       <div class="empty-state">No comments yet.</div>
       {% endif %}
 
+      {% if current_user and current_user.can('add_comment') %}
       <form method="post" action="/api/tickets/{{ ticket.id }}/comment" class="comment-form">
-        <input type="text" name="author" placeholder="Your name" value="You"/>
         <textarea name="body" rows="3" placeholder="Add a comment..." required></textarea>
-        <button type="submit" class="btn-primary">Post Comment</button>
+        <button type="submit" class="btn-primary">Post as {{ current_user.display_name }}</button>
       </form>
+      {% endif %}
     </div>
   </div>
 
   <!-- Sidebar -->
   <div class="ticket-sidebar">
+    {% set can_edit = current_user and (current_user.can('edit_any_ticket') or ticket.assignee == current_user.display_name or ticket.reporter == current_user.display_name) %}
     <form method="post" action="/api/tickets/{{ ticket.id }}/update" class="sidebar-form">
       <div class="sidebar-field">
         <label>Status</label>
+        {% if can_edit %}
         <select name="status" onchange="this.form.submit()">
           {% for s in statuses %}
           <option value="{{ s }}" {% if ticket.status == s %}selected{% endif %}>{{ s }}</option>
           {% endfor %}
         </select>
+        {% else %}
+        <div class="sidebar-readonly">
+          <span class="status-tag status-{{ ticket.status.lower().replace(' ','-') }}">{{ ticket.status }}</span>
+        </div>
+        {% endif %}
       </div>
+
+      {% if current_user and current_user.can('edit_any_ticket') %}
       <div class="sidebar-field">
         <label>Priority</label>
         <select name="priority" onchange="this.form.submit()">
@@ -94,7 +108,16 @@
       </div>
       <div class="sidebar-field">
         <label>Assignee</label>
-        <input type="text" name="assignee" value="{{ ticket.assignee }}" onblur="this.form.submit()"/>
+        <select name="assignee" onchange="this.form.submit()">
+          <option value="Unassigned" {% if ticket.assignee == 'Unassigned' %}selected{% endif %}>Unassigned</option>
+          {% for u in all_users %}
+          {% if u.active %}
+          <option value="{{ u.display_name }}" {% if ticket.assignee == u.display_name %}selected{% endif %}>
+            {{ u.display_name }} ({{ u.role }})
+          </option>
+          {% endif %}
+          {% endfor %}
+        </select>
       </div>
       <div class="sidebar-field">
         <label>Story Points</label>
@@ -109,6 +132,16 @@
           {% endfor %}
         </select>
       </div>
+      {% else %}
+      <div class="sidebar-field">
+        <label>Priority</label>
+        <div class="sidebar-readonly"><span class="priority-tag priority-{{ ticket.priority.lower() }}">{{ ticket.priority }}</span></div>
+      </div>
+      <div class="sidebar-field">
+        <label>Assignee</label>
+        <div class="sidebar-readonly">{{ ticket.assignee }}</div>
+      </div>
+      {% endif %}
     </form>
 
     <div class="sidebar-meta">
