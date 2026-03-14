@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Board — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Board{% if sprint %} — {{ sprint.name }}{% endif %}</h1>
+  <div class="header-actions">
+    <select class="sprint-select" onchange="location.href='/board?sprint_id='+this.value">
+      <option value="">-- Select Sprint --</option>
+      {% for s in sprints %}
+      <option value="{{ s.id }}" {% if sprint and sprint.id == s.id %}selected{% endif %}>
+        {{ s.name }} ({{ s.status }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+{% if not sprint %}
+<div class="empty-state center">No sprint selected. <a href="/sprints">Create a sprint</a> and add tickets.</div>
+{% else %}
+<div class="board">
+  {% for lane_name, tickets in lanes.items() %}
+  <div class="lane" data-status="{{ lane_name }}">
+    <div class="lane-header">
+      <span class="lane-title">{{ lane_name }}</span>
+      <span class="lane-count">{{ tickets|length }}</span>
+    </div>
+    <div class="lane-body" id="lane-{{ lane_name|replace(' ','-') }}"
+         ondragover="event.preventDefault()"
+         ondrop="dropTicket(event, '{{ lane_name }}')">
+      {% for t in tickets %}
+      <div class="ticket-card" draggable="true"
+           ondragstart="dragTicket(event, '{{ t.id }}')"
+           onclick="location.href='/tickets/{{ t.id }}'">
+        <div class="ticket-card-top">
+          <span class="ticket-key">{{ t.key }}</span>
+          <span class="priority-dot priority-{{ t.priority.lower() }}" title="{{ t.priority }}"></span>
+        </div>
+        <div class="ticket-title">{{ t.title }}</div>
+        <div class="ticket-card-meta">
+          <span class="type-badge type-{{ t.type.lower() }}">{{ t.type }}</span>
+          {% if t.story_points %}
+          <span class="points-badge">{{ t.story_points }} pts</span>
+          {% endif %}
+          <span class="assignee-chip">{{ t.assignee[:12] }}</span>
+        </div>
+        {% if t.labels %}
+        <div class="ticket-labels">
+          {% for l in t.labels[:3] %}
+          <span class="label-chip">{{ l }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+let dragging = null;
+function dragTicket(e, id) { dragging = id; e.dataTransfer.effectAllowed = 'move'; }
+async function dropTicket(e, status) {
+  e.preventDefault();
+  if (!dragging) return;
+  await fetch(`/api/tickets/${dragging}/move`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  location.reload();
+}
+</script>
+{% endblock %}

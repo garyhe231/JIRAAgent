@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Backlog — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Backlog</h1>
+  <button class="btn-primary" onclick="document.getElementById('new-ticket-modal').style.display='flex'">
+    + New Ticket
+  </button>
+</div>
+
+{% if tickets %}
+<div class="backlog-table-wrap">
+  <table class="backlog-table">
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Type</th>
+        <th>Title</th>
+        <th>Priority</th>
+        <th>Assignee</th>
+        <th>Points</th>
+        <th>Labels</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr onclick="location.href='/tickets/{{ t.id }}'" class="backlog-row">
+        <td><span class="ticket-key">{{ t.key }}</span></td>
+        <td><span class="type-badge type-{{ t.type.lower() }}">{{ t.type }}</span></td>
+        <td class="ticket-title-cell">{{ t.title }}</td>
+        <td>
+          <span class="priority-tag priority-{{ t.priority.lower() }}">{{ t.priority }}</span>
+        </td>
+        <td>{{ t.assignee }}</td>
+        <td>{% if t.story_points %}<span class="points-badge">{{ t.story_points }}</span>{% else %}—{% endif %}</td>
+        <td>
+          {% for l in t.labels[:2] %}
+          <span class="label-chip">{{ l }}</span>
+          {% endfor %}
+        </td>
+        <td onclick="event.stopPropagation()">
+          {% if sprints %}
+          <select class="inline-select" onchange="moveToSprint('{{ t.id }}', this.value)">
+            <option value="">Move to sprint...</option>
+            {% for s in sprints %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state center">
+  <p>Backlog is empty.</p>
+  <button class="btn-primary" onclick="document.getElementById('new-ticket-modal').style.display='flex'">
+    Create your first ticket
+  </button>
+</div>
+{% endif %}
+
+<script>
+async function moveToSprint(ticketId, sprintId) {
+  if (!sprintId) return;
+  const fd = new FormData();
+  fd.append('sprint_id', sprintId);
+  await fetch(`/api/tickets/${ticketId}/update`, { method:'POST', body: fd });
+  location.reload();
+}
+</script>
+{% endblock %}

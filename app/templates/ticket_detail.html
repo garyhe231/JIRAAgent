@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.key }} — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="breadcrumb"><a href="/backlog">Backlog</a> / <span>{{ ticket.key }}</span></div>
+  <div class="header-actions">
+    <form method="post" action="/api/tickets/{{ ticket.id }}/delete"
+          onsubmit="return confirm('Delete this ticket?')">
+      <button type="submit" class="btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="ticket-detail-layout">
+  <!-- Main -->
+  <div class="ticket-main">
+    <div class="ticket-key-header">{{ ticket.key }}</div>
+    <h1 class="ticket-detail-title">{{ ticket.title }}</h1>
+
+    <div class="ticket-badges">
+      <span class="type-badge type-{{ ticket.type.lower() }}">{{ ticket.type }}</span>
+      <span class="priority-tag priority-{{ ticket.priority.lower() }}">{{ ticket.priority }}</span>
+      <span class="status-tag status-{{ ticket.status.lower().replace(' ','-') }}">{{ ticket.status }}</span>
+      {% for l in ticket.labels %}
+      <span class="label-chip">{{ l }}</span>
+      {% endfor %}
+    </div>
+
+    <div class="ticket-description">
+      <h3>Description</h3>
+      <p>{{ ticket.description or 'No description provided.' }}</p>
+    </div>
+
+    <!-- AI Triage -->
+    <div class="triage-box" id="triage-box">
+      <button class="btn-ai" onclick="loadTriage('{{ ticket.id }}')">
+        &#10024; AI Triage Analysis
+      </button>
+      <div id="triage-result" style="display:none"></div>
+    </div>
+
+    <!-- Comments -->
+    <div class="comments-section">
+      <h3>Activity</h3>
+      {% if ticket.comments %}
+      <div class="comments-list">
+        {% for c in ticket.comments %}
+        <div class="comment">
+          <div class="comment-author">{{ c.author }}</div>
+          <div class="comment-time">{{ c.created_at[:16].replace('T', ' ') }}</div>
+          <div class="comment-body">{{ c.body }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">No comments yet.</div>
+      {% endif %}
+
+      <form method="post" action="/api/tickets/{{ ticket.id }}/comment" class="comment-form">
+        <input type="text" name="author" placeholder="Your name" value="You"/>
+        <textarea name="body" rows="3" placeholder="Add a comment..." required></textarea>
+        <button type="submit" class="btn-primary">Post Comment</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="ticket-sidebar">
+    <form method="post" action="/api/tickets/{{ ticket.id }}/update" class="sidebar-form">
+      <div class="sidebar-field">
+        <label>Status</label>
+        <select name="status" onchange="this.form.submit()">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if ticket.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sidebar-field">
+        <label>Priority</label>
+        <select name="priority" onchange="this.form.submit()">
+          {% for p in priorities %}
+          <option value="{{ p }}" {% if ticket.priority == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sidebar-field">
+        <label>Type</label>
+        <select name="type" onchange="this.form.submit()">
+          {% for t in types %}
+          <option value="{{ t }}" {% if ticket.type == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sidebar-field">
+        <label>Assignee</label>
+        <input type="text" name="assignee" value="{{ ticket.assignee }}" onblur="this.form.submit()"/>
+      </div>
+      <div class="sidebar-field">
+        <label>Story Points</label>
+        <input type="number" name="story_points" value="{{ ticket.story_points or '' }}" onblur="this.form.submit()" min="1" max="100"/>
+      </div>
+      <div class="sidebar-field">
+        <label>Sprint</label>
+        <select name="sprint_id" onchange="this.form.submit()">
+          <option value="">Backlog</option>
+          {% for s in sprints %}
+          <option value="{{ s.id }}" {% if ticket.sprint_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+
+    <div class="sidebar-meta">
+      <div><span>Reporter:</span> {{ ticket.reporter }}</div>
+      <div><span>Created:</span> {{ ticket.created_at[:10] }}</div>
+      <div><span>Updated:</span> {{ ticket.updated_at[:10] }}</div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadTriage(ticketId) {
+  const btn = document.querySelector('.btn-ai');
+  const result = document.getElementById('triage-result');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  const resp = await fetch(`/api/tickets/${ticketId}/triage`, { method: 'POST' });
+  const data = await resp.json();
+  btn.style.display = 'none';
+  result.style.display = 'block';
+  result.innerHTML = `
+    <div class="triage-result">
+      <p>${data.summary || ''}</p>
+      <div class="triage-fields">
+        ${data.suggested_priority ? `<span class="triage-chip">Priority: ${data.suggested_priority}</span>` : ''}
+        ${data.suggested_story_points ? `<span class="triage-chip">Points: ${data.suggested_story_points}</span>` : ''}
+        ${data.suggested_type ? `<span class="triage-chip">Type: ${data.suggested_type}</span>` : ''}
+      </div>
+      ${data.risks && data.risks.length ? `<div class="triage-risks"><strong>Risks:</strong><ul>${data.risks.map(r=>'<li>'+r+'</li>').join('')}</ul></div>` : ''}
+      ${data.suggested_labels && data.suggested_labels.length ? `<div class="triage-labels"><strong>Labels:</strong> ${data.suggested_labels.map(l=>'<span class="label-chip">'+l+'</span>').join(' ')}</div>` : ''}
+    </div>
+  `;
+}
+</script>
+{% endblock %}

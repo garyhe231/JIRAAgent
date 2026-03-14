@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Sprints — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Sprints</h1>
+  <button class="btn-primary" onclick="document.getElementById('new-sprint-modal').style.display='flex'">
+    + New Sprint
+  </button>
+</div>
+
+{% if sprint_data %}
+<div class="sprints-grid">
+  {% for item in sprint_data %}
+  <div class="sprint-card status-{{ item.sprint.status.lower() }}">
+    <div class="sprint-card-header">
+      <div>
+        <div class="sprint-card-name">{{ item.sprint.name }}</div>
+        <div class="sprint-goal-text">{{ item.sprint.goal or 'No goal set.' }}</div>
+      </div>
+      <span class="sprint-status-tag {{ item.sprint.status.lower() }}">{{ item.sprint.status }}</span>
+    </div>
+
+    {% if item.sprint.start_date %}
+    <div class="sprint-dates-line">
+      {{ item.sprint.start_date }} &rarr; {{ item.sprint.end_date or 'TBD' }}
+    </div>
+    {% endif %}
+
+    <div class="sprint-progress-wrap">
+      <div class="progress-bar">
+        {% set pct = (item.done / item.total * 100) | int if item.total > 0 else 0 %}
+        <div class="progress-fill" style="width:{{ pct }}%"></div>
+      </div>
+      <span class="progress-label">{{ item.done }}/{{ item.total }} tickets done ({{ pct }}%)</span>
+    </div>
+
+    {% if item.points_total > 0 %}
+    <div class="sprint-points">
+      Points: {{ item.points_done }}/{{ item.points_total }}
+    </div>
+    {% endif %}
+
+    <div class="sprint-actions">
+      <a href="/board?sprint_id={{ item.sprint.id }}" class="btn-small">View Board</a>
+      {% if item.sprint.status == 'Planning' %}
+      <form method="post" action="/api/sprints/{{ item.sprint.id }}/start" style="display:inline">
+        <button type="submit" class="btn-small accent">Start Sprint</button>
+      </form>
+      {% elif item.sprint.status == 'Active' %}
+      <form method="post" action="/api/sprints/{{ item.sprint.id }}/complete" style="display:inline">
+        <button type="submit" class="btn-small">Complete</button>
+      </form>
+      <button class="btn-small accent" onclick="loadSprintSummary('{{ item.sprint.id }}', this)">
+        &#10024; AI Summary
+      </button>
+      {% endif %}
+    </div>
+    <div id="summary-{{ item.sprint.id }}" class="sprint-summary-text" style="display:none"></div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state center">
+  No sprints yet.
+  <button class="btn-primary" onclick="document.getElementById('new-sprint-modal').style.display='flex'">
+    Create Sprint
+  </button>
+</div>
+{% endif %}
+
+<!-- New Sprint Modal -->
+<div id="new-sprint-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Sprint</h2>
+      <button class="modal-close" onclick="document.getElementById('new-sprint-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/sprints">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Sprint Name</label>
+          <input type="text" name="name" placeholder="e.g. Sprint 1 — Auth & Dashboard"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Sprint Goal</label>
+          <textarea name="goal" rows="2" placeholder="What will be achieved in this sprint?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" name="start_date"/>
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" name="end_date"/>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('new-sprint-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create Sprint</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+async function loadSprintSummary(sprintId, btn) {
+  const box = document.getElementById('summary-' + sprintId);
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  const resp = await fetch(`/api/sprints/${sprintId}/summary`);
+  const data = await resp.json();
+  btn.style.display = 'none';
+  box.style.display = 'block';
+  box.textContent = data.summary;
+}
+</script>
+{% endblock %}

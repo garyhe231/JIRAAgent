@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <div class="header-actions">
+    {% if active_sprint %}
+    <span class="sprint-badge active-sprint">&#9679; {{ active_sprint.name }}</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.total }}</div>
+    <div class="stat-label">Total Tickets</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.backlog }}</div>
+    <div class="stat-label">In Backlog</div>
+  </div>
+  <div class="stat-card accent-blue">
+    <div class="stat-value">{{ stats.in_progress }}</div>
+    <div class="stat-label">In Progress</div>
+  </div>
+  <div class="stat-card accent-green">
+    <div class="stat-value">{{ stats.done }}</div>
+    <div class="stat-label">Done</div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <!-- Active Sprint -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Active Sprint</h2>
+      {% if active_sprint %}
+      <a href="/board?sprint_id={{ active_sprint.id }}" class="btn-small">View Board</a>
+      {% endif %}
+    </div>
+    {% if active_sprint %}
+    <div class="sprint-info">
+      <div class="sprint-name">{{ active_sprint.name }}</div>
+      <div class="sprint-goal">{{ active_sprint.goal or 'No goal set.' }}</div>
+      {% if active_sprint.start_date %}
+      <div class="sprint-dates">
+        {{ active_sprint.start_date }} &rarr; {{ active_sprint.end_date or 'TBD' }}
+      </div>
+      {% endif %}
+    </div>
+    <div class="ai-summary-box" id="sprint-summary-box">
+      <button class="btn-ai" onclick="loadSprintSummary('{{ active_sprint.id }}')">
+        &#10024; Generate AI Sprint Summary
+      </button>
+      <div id="sprint-summary-text" class="summary-text" style="display:none"></div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      No active sprint. <a href="/sprints">Create one &rarr;</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- All Sprints -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Sprints</h2>
+      <a href="/sprints" class="btn-small">Manage</a>
+    </div>
+    {% if sprints %}
+    <ul class="sprint-list">
+      {% for s in sprints[:5] %}
+      <li class="sprint-list-item">
+        <span class="sprint-status-dot {{ s.status.lower() }}"></span>
+        <a href="/board?sprint_id={{ s.id }}">{{ s.name }}</a>
+        <span class="sprint-status-tag {{ s.status.lower() }}">{{ s.status }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">No sprints yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Access to AI -->
+<div class="ai-cta">
+  <span class="ai-cta-icon">&#10024;</span>
+  <div>
+    <strong>AI Assistant</strong>
+    <p>Create tickets with natural language, get sprint insights, triage issues.</p>
+  </div>
+  <a href="/ai" class="btn-primary">Open AI Chat</a>
+</div>
+
+<script>
+async function loadSprintSummary(sprintId) {
+  const btn = document.querySelector('.btn-ai');
+  const textEl = document.getElementById('sprint-summary-text');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  const resp = await fetch(`/api/sprints/${sprintId}/summary`);
+  const data = await resp.json();
+  btn.style.display = 'none';
+  textEl.style.display = 'block';
+  textEl.textContent = data.summary;
+}
+</script>
+{% endblock %}

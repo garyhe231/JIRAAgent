@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}JIRAAgent{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">&#9670;</span>
+    <span class="logo-text">JIRAAgent</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="/" class="nav-item {% if request.url.path == '/' %}active{% endif %}">
+      <span class="nav-icon">&#9782;</span> Dashboard
+    </a></li>
+    <li><a href="/board" class="nav-item {% if '/board' in request.url.path %}active{% endif %}">
+      <span class="nav-icon">&#9783;</span> Board
+    </a></li>
+    <li><a href="/backlog" class="nav-item {% if '/backlog' in request.url.path %}active{% endif %}">
+      <span class="nav-icon">&#9776;</span> Backlog
+    </a></li>
+    <li><a href="/sprints" class="nav-item {% if '/sprints' in request.url.path %}active{% endif %}">
+      <span class="nav-icon">&#9881;</span> Sprints
+    </a></li>
+    <li><a href="/ai" class="nav-item {% if '/ai' in request.url.path %}active{% endif %}">
+      <span class="nav-icon">&#10024;</span> AI Assistant
+    </a></li>
+  </ul>
+  <div class="sidebar-footer">
+    <button class="btn-new" onclick="document.getElementById('new-ticket-modal').style.display='flex'">
+      + New Ticket
+    </button>
+  </div>
+</nav>
+
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- New Ticket Modal -->
+<div id="new-ticket-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create New Ticket</h2>
+      <button class="modal-close" onclick="document.getElementById('new-ticket-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/tickets">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Title *</label>
+          <input type="text" name="title" required placeholder="Brief summary of the issue or task"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="4" placeholder="Detailed description, steps to reproduce, acceptance criteria..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select name="type">
+            <option>Task</option><option>Bug</option><option>Feature</option>
+            <option>Story</option><option>Epic</option><option>Improvement</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select name="priority">
+            <option>Medium</option><option>Critical</option><option>High</option><option>Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Assignee</label>
+          <input type="text" name="assignee" placeholder="Unassigned" value="Unassigned"/>
+        </div>
+        <div class="form-group">
+          <label>Story Points</label>
+          <input type="number" name="story_points" min="1" max="100" placeholder="e.g. 3"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Labels (comma-separated)</label>
+          <input type="text" name="labels" placeholder="frontend, auth, urgent"/>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('new-ticket-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create Ticket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
