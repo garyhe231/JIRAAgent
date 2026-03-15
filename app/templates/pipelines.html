@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Pipelines — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Pipelines</h1>
+  {% if current_user and current_user.can('manage_sprints') %}
+  <button class="btn-primary" onclick="document.getElementById('new-pipeline-modal').style.display='flex'">
+    + New Pipeline
+  </button>
+  {% endif %}
+</div>
+
+{% if pipelines %}
+<div class="pipeline-list">
+  {% for pl in pipelines %}
+  <div class="pipeline-card" onclick="location.href='/pipelines/{{ pl.id }}'">
+    <div class="pipeline-card-left">
+      <div class="pipeline-name">{{ pl.name }}</div>
+      {% if pl.description %}<div class="pipeline-desc">{{ pl.description }}</div>{% endif %}
+    </div>
+    <div class="pipeline-card-stages">
+      {% for stage in pl.stages %}
+      <span class="pipeline-stage-chip">{{ stage }}</span>
+      {% if not loop.last %}<span class="pipeline-arrow">›</span>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="pipeline-card-meta">
+      {{ pl.project_stages | length }} project(s) tracked &nbsp;·&nbsp; {{ pl.stages | length }} stages
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state center">
+  No pipelines yet.
+  {% if current_user and current_user.can('manage_sprints') %}
+  <button class="btn-primary" style="margin-top:12px"
+    onclick="document.getElementById('new-pipeline-modal').style.display='flex'">
+    Create your first pipeline
+  </button>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if current_user and current_user.can('manage_sprints') %}
+<div id="new-pipeline-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Pipeline</h2>
+      <button class="modal-close" onclick="document.getElementById('new-pipeline-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/pipelines">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Pipeline Name *</label>
+          <input type="text" name="name" required placeholder="e.g. Product Launch Lifecycle"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="2" placeholder="What does this pipeline track?"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>Stages (comma-separated, in order)</label>
+          <input type="text" name="stages" value="Planned,In Progress,Review,Done"
+                 placeholder="Planned,In Progress,Review,Done"/>
+          <div class="form-hint">Define the stages projects will move through</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost"
+          onclick="document.getElementById('new-pipeline-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Create Pipeline</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

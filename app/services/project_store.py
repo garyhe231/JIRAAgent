@@ -4,10 +4,11 @@ import uuid
 from datetime import datetime, date
 from typing import List, Optional, Dict
 
-from app.models.project import Project, Milestone, PROJECT_COLORS
+from app.models.project import Project, Milestone, Pipeline, PROJECT_COLORS
 
 PROJECTS_DIR = "data/projects"
 MILESTONES_DIR = "data/milestones"
+PIPELINES_DIR = "data/pipelines"
 COUNTER_FILE = "data/counter.json"
 
 
@@ -187,6 +188,87 @@ def delete_milestone(milestone_id: str) -> bool:
         os.remove(path)
         return True
     return False
+
+
+# ── Pipeline CRUD ─────────────────────────────────────────────────────────────
+
+def create_pipeline(
+    name: str,
+    description: str = "",
+    stages: Optional[List[str]] = None,
+    created_by: str = "Admin",
+) -> Pipeline:
+    os.makedirs(PIPELINES_DIR, exist_ok=True)
+    now = _now()
+    pipeline = Pipeline(
+        id=str(uuid.uuid4()),
+        name=name,
+        description=description,
+        stages=stages or ["Planned", "In Progress", "Review", "Done"],
+        project_stages={},
+        created_by=created_by,
+        created_at=now,
+        updated_at=now,
+    )
+    with open(os.path.join(PIPELINES_DIR, f"{pipeline.id}.json"), "w") as f:
+        json.dump(pipeline.to_dict(), f, indent=2)
+    return pipeline
+
+
+def list_pipelines() -> List[Pipeline]:
+    pipelines = []
+    if not os.path.exists(PIPELINES_DIR):
+        return pipelines
+    for fname in os.listdir(PIPELINES_DIR):
+        if not fname.endswith(".json"):
+            continue
+        with open(os.path.join(PIPELINES_DIR, fname)) as f:
+            pipelines.append(Pipeline.from_dict(json.load(f)))
+    pipelines.sort(key=lambda p: p.created_at)
+    return pipelines
+
+
+def get_pipeline(pipeline_id: str) -> Optional[Pipeline]:
+    path = os.path.join(PIPELINES_DIR, f"{pipeline_id}.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return Pipeline.from_dict(json.load(f))
+
+
+def update_pipeline(pipeline_id: str, **kwargs) -> Optional[Pipeline]:
+    p = get_pipeline(pipeline_id)
+    if not p:
+        return None
+    for k, v in kwargs.items():
+        if hasattr(p, k):
+            setattr(p, k, v)
+    p.updated_at = _now()
+    with open(os.path.join(PIPELINES_DIR, f"{pipeline_id}.json"), "w") as f:
+        json.dump(p.to_dict(), f, indent=2)
+    return p
+
+
+def delete_pipeline(pipeline_id: str) -> bool:
+    path = os.path.join(PIPELINES_DIR, f"{pipeline_id}.json")
+    if os.path.exists(path):
+        os.remove(path)
+        return True
+    return False
+
+
+def set_project_stage(pipeline_id: str, project_id: str, stage: str) -> Optional[Pipeline]:
+    p = get_pipeline(pipeline_id)
+    if not p:
+        return None
+    if stage:
+        p.project_stages[project_id] = stage
+    else:
+        p.project_stages.pop(project_id, None)
+    p.updated_at = _now()
+    with open(os.path.join(PIPELINES_DIR, f"{pipeline_id}.json"), "w") as f:
+        json.dump(p.to_dict(), f, indent=2)
+    return p
 
 
 # ── Project stats ─────────────────────────────────────────────────────────────

@@ -1005,3 +1005,55 @@ a:hover { text-decoration: underline; }
   .charts-row-3 { grid-template-columns: 1fr; }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Pipelines ─────────────────────────────────────────────── */
+.pipeline-list { display: flex; flex-direction: column; gap: 12px; }
+.pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; cursor: pointer; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 8px 20px; transition: border-color .15s; }
+.pipeline-card:hover { border-color: #4f7ef8; }
+.pipeline-name { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+.pipeline-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.pipeline-card-stages { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pipeline-stage-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 3px 10px; font-size: 12px; color: #e2e8f0; white-space: nowrap; }
+.pipeline-arrow { color: var(--text-muted); font-size: 14px; }
+.pipeline-card-meta { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); }
+
+.pipeline-description { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+
+/* Stage flow bar */
+.stage-flow { display: flex; align-items: center; gap: 0; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; overflow-x: auto; }
+.stage-flow-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 14px; border-radius: 6px; min-width: 80px; }
+.stage-flow-item.stage-flow-active { background: rgba(79,126,248,.1); }
+.stage-flow-name { font-size: 12px; font-weight: 600; color: #e2e8f0; white-space: nowrap; }
+.stage-flow-count { font-size: 18px; font-weight: 700; color: #4f7ef8; }
+.stage-flow-arrow { color: var(--text-muted); font-size: 20px; padding: 0 4px; flex-shrink: 0; }
+
+/* Pipeline board */
+.pipeline-board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-bottom: 20px; min-height: 400px; }
+.pipeline-col { flex: 0 0 240px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; max-height: calc(100vh - 260px); }
+.pipeline-col-unassigned { opacity: .7; }
+.pipeline-col.drag-over { border-color: #4f7ef8; background: rgba(79,126,248,.05); }
+.pipeline-col-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.pipeline-col-title { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+.pipeline-col-count { background: var(--surface2); border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.pipeline-col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; }
+
+/* Project cards inside pipeline */
+.pipeline-proj-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: grab; transition: border-color .15s, transform .1s; }
+.pipeline-proj-card:hover { border-color: #4f7ef8; }
+.pipeline-proj-card.dragging { opacity: .5; transform: rotate(1deg); }
+.ppc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.ppc-name { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px; }
+.ppc-health { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ppc-health .health-bar-wrap { flex: 1; }
+.ppc-health-label { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.ppc-stats { display: flex; gap: 10px; font-size: 11px; color: var(--text-muted); }
+
+/* Right-click stage dropdown */
+.stage-dropdown { position: fixed; z-index: 999; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.stage-dropdown-item { padding: 9px 14px; font-size: 13px; color: #e2e8f0; cursor: pointer; }
+.stage-dropdown-item:hover { background: var(--surface2); }
+.stage-dropdown-remove { color: #ef4444; border-top: 1px solid var(--border); }
+
+.breadcrumb-link { color: var(--text-muted); font-size: 14px; text-decoration: none; }
+.breadcrumb-link:hover { color: #e2e8f0; }
+.form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }

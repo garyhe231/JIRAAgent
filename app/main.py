@@ -618,3 +618,93 @@ async def api_project_stats(request: Request, project_id: str):
     _require(request)
     tickets = ts.list_tickets(project_id=project_id)
     return JSONResponse(ps.project_stats(project_id, tickets))
+
+
+# ── Pipelines ─────────────────────────────────────────────────────────────────
+
+@app.get("/pipelines", response_class=HTMLResponse)
+async def pipelines_page(request: Request):
+    _require(request)
+    pipelines = ps.list_pipelines()
+    all_projects = ps.list_projects()
+    return templates.TemplateResponse("pipelines.html", _ctx(
+        request, pipelines=pipelines, all_projects=all_projects,
+    ))
+
+
+@app.get("/pipelines/{pipeline_id}", response_class=HTMLResponse)
+async def pipeline_detail(request: Request, pipeline_id: str):
+    _require(request)
+    pipeline = ps.get_pipeline(pipeline_id)
+    if not pipeline:
+        raise HTTPException(404, "Pipeline not found")
+    all_projects = ps.list_projects()
+    # Build stage -> [project+stats] map
+    stage_map = {s: [] for s in pipeline.stages}
+    unassigned = []
+    for p in all_projects:
+        tickets = ts.list_tickets(project_id=p.id)
+        stats = ps.project_stats(p.id, tickets)
+        entry = {"project": p, "stats": stats}
+        stage = pipeline.project_stages.get(p.id)
+        if stage and stage in stage_map:
+            stage_map[stage].append(entry)
+        else:
+            unassigned.append(entry)
+    all_pipelines = ps.list_pipelines()
+    return templates.TemplateResponse("pipeline_detail.html", _ctx(
+        request, pipeline=pipeline, stage_map=stage_map,
+        unassigned=unassigned, all_projects=all_projects,
+        all_pipelines=all_pipelines,
+    ))
+
+
+@app.post("/api/pipelines")
+async def api_create_pipeline(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(""),
+    stages: str = Form("Planned,In Progress,Review,Done"),
+):
+    user = _require(request, "manage_sprints")
+    stage_list = [s.strip() for s in stages.split(",") if s.strip()]
+    ps.create_pipeline(name=name, description=description,
+                       stages=stage_list, created_by=user.display_name)
+    return RedirectResponse("/pipelines", status_code=303)
+
+
+@app.post("/api/pipelines/{pipeline_id}/update")
+async def api_update_pipeline(
+    request: Request,
+    pipeline_id: str,
+    name: str = Form(None),
+    description: str = Form(None),
+    stages: str = Form(None),
+):
+    _require(request, "manage_sprints")
+    fields = {}
+    if name is not None: fields["name"] = name
+    if description is not None: fields["description"] = description
+    if stages is not None:
+        fields["stages"] = [s.strip() for s in stages.split(",") if s.strip()]
+    ps.update_pipeline(pipeline_id, **fields)
+    return RedirectResponse(f"/pipelines/{pipeline_id}", status_code=303)
+
+
+@app.post("/api/pipelines/{pipeline_id}/delete")
+async def api_delete_pipeline(request: Request, pipeline_id: str):
+    _require(request, "manage_sprints")
+    ps.delete_pipeline(pipeline_id)
+    return RedirectResponse("/pipelines", status_code=303)
+
+
+@app.post("/api/pipelines/{pipeline_id}/stage")
+async def api_set_project_stage(
+    request: Request,
+    pipeline_id: str,
+    project_id: str = Form(...),
+    stage: str = Form(""),
+):
+    _require(request, "manage_sprints")
+    ps.set_project_stage(pipeline_id, project_id, stage)
+    return JSONResponse({"ok": True})

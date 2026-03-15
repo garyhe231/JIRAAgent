@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field, asdict
 from typing import Optional, List
 
 PROJECT_STATUSES = ["Active", "On Hold", "Completed", "Cancelled"]
@@ -45,4 +45,24 @@ class Milestone:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Milestone":
+        return cls(**d)
+
+
+@dataclass
+class Pipeline:
+    id: str
+    name: str
+    description: str
+    stages: List[str]          # ordered list of stage names
+    # {project_id: stage_name}
+    project_stages: dict
+    created_by: str
+    created_at: str
+    updated_at: str
+
+    def to_dict(self):
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Pipeline":
         return cls(**d)

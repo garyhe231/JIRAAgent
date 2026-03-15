@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{{ pipeline.name }} — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <a href="/pipelines" class="breadcrumb-link">Pipelines</a>
+    <span style="color:var(--text-muted)">/</span>
+    <h1 style="margin:0">{{ pipeline.name }}</h1>
+  </div>
+  <div class="header-actions">
+    {% if current_user and current_user.can('manage_sprints') %}
+    <button class="btn-ghost" onclick="document.getElementById('edit-pipeline-modal').style.display='flex'">
+      Edit Pipeline
+    </button>
+    <form method="post" action="/api/pipelines/{{ pipeline.id }}/delete" style="display:inline"
+          onsubmit="return confirm('Delete this pipeline?')">
+      <button type="submit" class="btn-danger">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if pipeline.description %}
+<div class="pipeline-description">{{ pipeline.description }}</div>
+{% endif %}
+
+<!-- Stage flow indicator -->
+<div class="stage-flow">
+  {% for stage in pipeline.stages %}
+  <div class="stage-flow-item {% if stage_map[stage] %}stage-flow-active{% endif %}">
+    <span class="stage-flow-name">{{ stage }}</span>
+    <span class="stage-flow-count">{{ stage_map[stage] | length }}</span>
+  </div>
+  {% if not loop.last %}<div class="stage-flow-arrow">&#8594;</div>{% endif %}
+  {% endfor %}
+</div>
+
+<!-- Board -->
+<div class="pipeline-board" id="pipeline-board">
+  {% for stage in pipeline.stages %}
+  <div class="pipeline-col" data-stage="{{ stage }}">
+    <div class="pipeline-col-header">
+      <span class="pipeline-col-title">{{ stage }}</span>
+      <span class="pipeline-col-count">{{ stage_map[stage] | length }}</span>
+    </div>
+    <div class="pipeline-col-body" id="col-{{ loop.index0 }}">
+      {% for item in stage_map[stage] %}
+      {% set p = item.project %}
+      {% set s = item.stats %}
+      <div class="pipeline-proj-card"
+           data-project-id="{{ p.id }}"
+           draggable="true"
+           ondragstart="dragStart(event)"
+           onclick="location.href='/projects/{{ p.id }}'">
+        <div class="ppc-top">
+          <span class="project-key" style="color:{{ p.color }}">{{ p.key }}</span>
+          <span class="project-status-tag status-{{ p.status.lower().replace(' ','-') }}">{{ p.status }}</span>
+        </div>
+        <div class="ppc-name">{{ p.name }}</div>
+        <div class="ppc-health">
+          <div class="health-bar-wrap" style="height:4px">
+            <div class="health-bar" style="width:{{ s.health }}%;background:{{ s.health_color }}"></div>
+          </div>
+          <span class="ppc-health-label" style="color:{{ s.health_color }}">{{ s.health_label }}</span>
+        </div>
+        <div class="ppc-stats">
+          <span>{{ s.total }} tickets</span>
+          <span style="color:#22c55e">{{ s.done }} done</span>
+          {% if s.blocked %}<span style="color:#ef4444">{{ s.blocked }} blocked</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Drop zone placeholder -->
+      <div class="pipeline-drop-zone" style="display:none"></div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Unassigned column -->
+  {% if unassigned %}
+  <div class="pipeline-col pipeline-col-unassigned" data-stage="">
+    <div class="pipeline-col-header">
+      <span class="pipeline-col-title">Unassigned</span>
+      <span class="pipeline-col-count">{{ unassigned | length }}</span>
+    </div>
+    <div class="pipeline-col-body">
+      {% for item in unassigned %}
+      {% set p = item.project %}
+      {% set s = item.stats %}
+      <div class="pipeline-proj-card"
+           data-project-id="{{ p.id }}"
+           draggable="true"
+           ondragstart="dragStart(event)"
+           onclick="location.href='/projects/{{ p.id }}'">
+        <div class="ppc-top">
+          <span class="project-key" style="color:{{ p.color }}">{{ p.key }}</span>
+          <span class="project-status-tag status-{{ p.status.lower().replace(' ','-') }}">{{ p.status }}</span>
+        </div>
+        <div class="ppc-name">{{ p.name }}</div>
+        <div class="ppc-health">
+          <div class="health-bar-wrap" style="height:4px">
+            <div class="health-bar" style="width:{{ s.health }}%;background:{{ s.health_color }}"></div>
+          </div>
+          <span class="ppc-health-label" style="color:{{ s.health_color }}">{{ s.health_label }}</span>
+        </div>
+        <div class="ppc-stats">
+          <span>{{ s.total }} tickets</span>
+          <span style="color:#22c55e">{{ s.done }} done</span>
+          {% if s.blocked %}<span style="color:#ef4444">{{ s.blocked }} blocked</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Quick assign: click on a project card's stage badge to reassign -->
+<div id="stage-dropdown" class="stage-dropdown" style="display:none">
+  {% for stage in pipeline.stages %}
+  <div class="stage-dropdown-item" data-stage="{{ stage }}">{{ stage }}</div>
+  {% endfor %}
+  <div class="stage-dropdown-item stage-dropdown-remove" data-stage="">Remove from pipeline</div>
+</div>
+
+<!-- Edit Pipeline Modal -->
+{% if current_user and current_user.can('manage_sprints') %}
+<div id="edit-pipeline-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Pipeline</h2>
+      <button class="modal-close" onclick="document.getElementById('edit-pipeline-modal').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/api/pipelines/{{ pipeline.id }}/update">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label>Pipeline Name *</label>
+          <input type="text" name="name" required value="{{ pipeline.name }}"/>
+        </div>
+        <div class="form-group full-width">
+          <label>Description</label>
+          <textarea name="description" rows="2">{{ pipeline.description }}</textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>Stages (comma-separated, in order)</label>
+          <input type="text" name="stages" value="{{ pipeline.stages | join(', ') }}"/>
+          <div class="form-hint">Renaming a stage will reassign projects already in that stage</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost"
+          onclick="document.getElementById('edit-pipeline-modal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+const PIPELINE_ID = '{{ pipeline.id }}';
+const CAN_EDIT = {{ 'true' if current_user and current_user.can('manage_sprints') else 'false' }};
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────────
+let draggingId = null;
+
+function dragStart(e) {
+  if (!CAN_EDIT) { e.preventDefault(); return; }
+  draggingId = e.currentTarget.dataset.projectId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+
+document.querySelectorAll('.pipeline-col').forEach(col => {
+  col.addEventListener('dragover', e => {
+    e.preventDefault();
+    col.classList.add('drag-over');
+  });
+  col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+  col.addEventListener('drop', async e => {
+    e.preventDefault();
+    col.classList.remove('drag-over');
+    if (!draggingId) return;
+    const stage = col.dataset.stage;
+    await setStage(draggingId, stage);
+    location.reload();
+  });
+});
+
+document.querySelectorAll('.pipeline-proj-card').forEach(card => {
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+});
+
+async function setStage(projectId, stage) {
+  const fd = new FormData();
+  fd.append('project_id', projectId);
+  fd.append('stage', stage);
+  await fetch(`/api/pipelines/${PIPELINE_ID}/stage`, { method: 'POST', body: fd });
+}
+
+// ── Right-click context menu to change stage ─────────────────────────────────
+let ctxProjectId = null;
+const dropdown = document.getElementById('stage-dropdown');
+
+document.querySelectorAll('.pipeline-proj-card').forEach(card => {
+  card.addEventListener('contextmenu', e => {
+    if (!CAN_EDIT) return;
+    e.preventDefault();
+    ctxProjectId = card.dataset.projectId;
+    dropdown.style.display = 'block';
+    dropdown.style.left = e.pageX + 'px';
+    dropdown.style.top = e.pageY + 'px';
+  });
+});
+
+dropdown.querySelectorAll('.stage-dropdown-item').forEach(item => {
+  item.addEventListener('click', async () => {
+    if (!ctxProjectId) return;
+    dropdown.style.display = 'none';
+    await setStage(ctxProjectId, item.dataset.stage);
+    location.reload();
+  });
+});
+
+document.addEventListener('click', () => { dropdown.style.display = 'none'; });
+</script>
+{% endblock %}
