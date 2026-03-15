@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Search — JIRAAgent{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Search</h1>
+</div>
+
+<div class="search-page-bar">
+  <span class="search-icon">&#128269;</span>
+  <input type="text" id="search-page-input" value="{{ q }}" placeholder="Search tickets, projects, assignees…" autofocus/>
+</div>
+
+<div id="search-page-results">
+  {% if q %}
+  <div class="search-loading" id="search-loading">Searching…</div>
+  {% else %}
+  <div class="empty-state center">Enter a search query above.</div>
+  {% endif %}
+</div>
+
+<script>
+const Q = {{ q | tojson }};
+
+async function runSearch(q) {
+  const results = document.getElementById('search-page-results');
+  if (!q) { results.innerHTML = '<div class="empty-state center">Enter a search query above.</div>'; return; }
+  results.innerHTML = '<div class="search-loading">Searching…</div>';
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  const tickets = data.tickets || [];
+  const projects = data.projects || [];
+
+  if (!tickets.length && !projects.length) {
+    results.innerHTML = `<div class="empty-state center">No results for "<strong>${q}</strong>".</div>`;
+    return;
+  }
+
+  const priorityColors = { Critical: '#ef4444', High: '#f97316', Medium: '#f59e0b', Low: '#94a3b8' };
+
+  let html = '';
+
+  if (tickets.length) {
+    html += `<div class="search-results-section">
+      <div class="search-results-header">Tickets <span class="search-count">${tickets.length}</span></div>
+      <table class="backlog-table">
+        <thead><tr><th>Key</th><th>Title</th><th>Status</th><th>Priority</th><th>Type</th><th>Assignee</th></tr></thead>
+        <tbody>`;
+    for (const t of tickets) {
+      html += `<tr class="backlog-row" onclick="location.href='/tickets/${t.id}'" style="cursor:pointer">
+        <td><span class="ticket-key">${t.key}</span></td>
+        <td class="ticket-title-cell">${t.title}</td>
+        <td><span class="status-tag status-${t.status.toLowerCase().replace(/ /g,'-')}">${t.status}</span></td>
+        <td><span class="priority-tag priority-${t.priority.toLowerCase()}">${t.priority}</span></td>
+        <td><span class="type-badge type-${t.type.toLowerCase()}">${t.type}</span></td>
+        <td>${t.assignee}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  if (projects.length) {
+    html += `<div class="search-results-section">
+      <div class="search-results-header">Projects <span class="search-count">${projects.length}</span></div>
+      <div class="search-project-list">`;
+    for (const p of projects) {
+      html += `<div class="search-project-item" onclick="location.href='/projects/${p.id}'">
+        <span class="project-key" style="color:${p.color}">${p.key}</span>
+        <span class="search-project-name">${p.name}</span>
+        <span class="project-status-tag status-${p.status.toLowerCase().replace(/ /g,'-')}">${p.status}</span>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  results.innerHTML = html;
+}
+
+// Run on load if query provided
+if (Q) runSearch(Q);
+
+// Live search as user types
+const input = document.getElementById('search-page-input');
+let timer;
+input.addEventListener('input', () => {
+  clearTimeout(timer);
+  const q = input.value.trim();
+  // Update URL without reload
+  history.replaceState(null, '', q ? `/search?q=${encodeURIComponent(q)}` : '/search');
+  timer = setTimeout(() => runSearch(q), 300);
+});
+input.addEventListener('keydown', e => { if (e.key === 'Escape') input.blur(); });
+</script>
+{% endblock %}

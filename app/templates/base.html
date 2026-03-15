@@ -74,8 +74,40 @@
 </nav>
 
 <main class="main-content">
+  <!-- Global search bar -->
+  <div class="global-search-wrap" id="global-search-wrap">
+    <div class="global-search-box">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="global-search-input" placeholder="Search tickets, projects… (/ to focus)" autocomplete="off"/>
+      <kbd class="search-kbd" id="search-kbd">/</kbd>
+    </div>
+    <div class="search-dropdown" id="search-dropdown" style="display:none"></div>
+  </div>
+
   {% block content %}{% endblock %}
 </main>
+
+<!-- Floating Chatbot -->
+{% if current_user %}
+<div id="chatbot-fab" class="chatbot-fab" onclick="toggleChat()" title="AI Assistant">
+  <span id="chatbot-fab-icon">&#10024;</span>
+</div>
+<div id="chatbot-panel" class="chatbot-panel" style="display:none">
+  <div class="chatbot-header">
+    <span>&#10024; AI Assistant</span>
+    <button class="chatbot-close" onclick="toggleChat()">&times;</button>
+  </div>
+  <div class="chatbot-messages" id="chatbot-messages">
+    <div class="chat-msg assistant">
+      <div class="chat-bubble">Hi! I can help you manage tickets, answer questions about the project, or create/update tickets. Try: <em>"What's the status of the sprint?"</em></div>
+    </div>
+  </div>
+  <div class="chatbot-input-row">
+    <input type="text" id="chatbot-input" placeholder="Ask anything…" autocomplete="off"/>
+    <button id="chatbot-send" onclick="sendChat()">&#9658;</button>
+  </div>
+</div>
+{% endif %}
 
 <!-- New Ticket Modal -->
 {% if current_user and current_user.can('create_ticket') %}

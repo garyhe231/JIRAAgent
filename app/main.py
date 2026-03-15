@@ -446,6 +446,42 @@ async def api_ai_chat(request: Request):
     return JSONResponse(result)
 
 
+# ── Search ───────────────────────────────────────────────────────────────────
+
+@app.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request, q: str = ""):
+    _require(request)
+    return templates.TemplateResponse("search.html", _ctx(request, q=q))
+
+
+@app.get("/api/search")
+async def api_search(request: Request, q: str = ""):
+    _require(request)
+    q = q.strip().lower()
+    results = {"tickets": [], "projects": []}
+    if not q:
+        return JSONResponse(results)
+
+    for t in ts.list_tickets():
+        if (q in t.title.lower() or q in (t.description or "").lower()
+                or q in t.key.lower() or q in t.assignee.lower()
+                or any(q in l.lower() for l in t.labels)):
+            results["tickets"].append({
+                "id": t.id, "key": t.key, "title": t.title,
+                "status": t.status, "priority": t.priority,
+                "type": t.type, "assignee": t.assignee,
+            })
+
+    for p in ps.list_projects():
+        if q in p.name.lower() or q in p.key.lower() or q in (p.description or "").lower():
+            results["projects"].append({
+                "id": p.id, "key": p.key, "name": p.name,
+                "status": p.status, "color": p.color,
+            })
+
+    return JSONResponse(results)
+
+
 # ── API: List (JSON) ─────────────────────────────────────────────────────────
 
 @app.get("/api/tickets")
